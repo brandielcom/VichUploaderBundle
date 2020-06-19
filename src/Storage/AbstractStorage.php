@@ -44,6 +44,11 @@ abstract class AbstractStorage implements StorageInterface
 
         if (false !== \strpos($mimeType, 'image/') && 'image/svg+xml' !== $mimeType && false !== $dimensions = @\getimagesize($file)) {
             $mapping->writeProperty($obj, 'dimensions', \array_splice($dimensions, 0, 2));
+
+            $path = $file->getRealPath();
+            if (is_file($path)) {
+                $this->reinstateImageOrientation($path);
+            }
         }
 
         $dir = $mapping->getUploadDir($obj);
@@ -131,5 +136,35 @@ abstract class AbstractStorage implements StorageInterface
         }
 
         return [$mapping, $mapping->getFileName($obj)];
+    }
+
+    /**
+     * Reinstate the image orientation
+     *
+     * @param string $imagePath the full path to the image file
+     */
+    protected function reinstateImageOrientation(string $imagePath)
+    {
+        try {
+            $image = new \Imagick($imagePath);
+
+            switch ($image->getImageOrientation()) {
+                case \Imagick::ORIENTATION_BOTTOMRIGHT:
+                    $image->rotateimage("#000", 180); // rotate 180 degrees
+                    break;
+                case \Imagick::ORIENTATION_RIGHTTOP:
+                    $image->rotateimage("#000", 90); // rotate 90 degrees CW
+                    break;
+                case \Imagick::ORIENTATION_LEFTBOTTOM:
+                    $image->rotateimage("#000", -90); // rotate 90 degrees CCW
+                    break;
+            }
+
+            $image->setImageOrientation(\Imagick::ORIENTATION_TOPLEFT);
+            $image->writeImage($imagePath);
+
+        } catch (\ImagickException $e) {
+            // It should not prevent the uploading process by this exception
+        }
     }
 }
